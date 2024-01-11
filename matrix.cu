@@ -179,6 +179,7 @@ void computeMatrixMulGPU
 }
 
 
+
 void matrix_dot_gpu(const matrix_t *m1, const matrix_t *m2, matrix_t *res) {
     // Calculate the size of each matrix in bytes
     
@@ -220,5 +221,58 @@ void matrix_dot_gpu(const matrix_t *m1, const matrix_t *m2, matrix_t *res) {
     cudaFree(deviceC);
 }
 
+__global__ void hadamard_product_kernel(
+   double *A, double *B, double *C,
+   int numARows, int numAColumns,
+   int numBRows, int numBColumns
+)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numARows * numAColumns)
+    {
+        C[idx] = A[idx] * B[idx];
+    }
+}
+
+void hadamard_product_GPU(matrix_t *m1, matrix_t *m2, matrix_t *res)
+{
+    assert ( (m1->columns == m2->columns)   &&
+             (m1->columns == res->columns)  &&
+             (m1->rows == m2->rows)         &&
+             (m1->rows == res->rows));
+    size_t size_m1 = m1->rows * m1->columns * sizeof(double);
+    size_t size_m2 = m2->rows * m2->columns * sizeof(double);
+    size_t size_res = res->rows * res->columns * sizeof(double);
+
+   double *deviceA;
+   double *deviceB;
+   double *deviceC;
+
+   // Memory allocation on the GPU
+   cudaMalloc((void **)&deviceA, size_m1);
+   cudaMalloc((void **)&deviceB, size_m2);
+   cudaMalloc((void **)&deviceC, size_res);
+    
+    cudaMemset(deviceC, 0, size_res); // Initialisez la mémoire à zéro
+ 
+    // Copy matrices from the host to the device
+    cudaMemcpy(deviceA, m1->m, size_m1, cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceB, m2->m, size_m2, cudaMemcpyHostToDevice);
+    
+
+    hadamard_product_kernel<<<4,16*16>>>(deviceA,deviceB, deviceC,m1->rows, m1->columns, m2->rows, m2->columns);
+    cudaDeviceSynchronize();
+
+    // Copy the result matrix back to the host
+    cudaMemcpy(res->m, deviceC, size_res, cudaMemcpyDeviceToHost);
+    
+                                                   
+    // Free the device matrices
+    cudaFree(deviceA);
+    cudaFree(deviceB);
+    cudaFree(deviceC);
+
+
+}
 
 

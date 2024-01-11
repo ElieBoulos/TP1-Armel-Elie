@@ -36,6 +36,7 @@ void matrix_memcpy(matrix_t *dest, const matrix_t *src);
 
 void matrix_dot_gpu(const matrix_t *m1, const matrix_t *m2, matrix_t *res);
 
+void hadamard_product_GPU(matrix_t *m1, matrix_t *m2, matrix_t *res);
 // CUDA kernel function declaration (needed only if the kernel is called from a different .cu file)
 // __global__ void MatrixDotKernel(const matrix_t m1, const matrix_t m2, matrix_t res);
 

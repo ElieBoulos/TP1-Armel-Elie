@@ -148,7 +148,7 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 
     matrix_minus(nn->layers[L]->activations, y, nn->layers[L]->delta);  // delta^(L) = (a^L - y)
     matrix_function(nn->layers[L]->z, derivative_actfunct, dfzL); // f'(z^(L))
-    hadamard_product(nn->layers[L]->delta, dfzL, nn->layers[L]->delta); // delta^(L) = (a^L - y) o f'(z^(L))
+    hadamard_product_GPU(nn->layers[L]->delta, dfzL, nn->layers[L]->delta); // delta^(L) = (a^L - y) o f'(z^(L))
 
     destroy_matrix(dfzL);
 
@@ -162,8 +162,8 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
         matrix_transpose(nn->layers[l]->weights, tw); // (w^l)T        
         matrix_dot_gpu(tw, nn->layers[l]->delta, delta_tmp); // (w^l)T x delta^l
         matrix_function(nn->layers[l-1]->z, derivative_actfunct, dfz); // f'(z^(l-1))
-        hadamard_product(delta_tmp, dfz, nn->layers[l-1]->delta); // delta^(l-1) = (w^l)T x delta^l o f'(z^(l-1))
-
+        hadamard_product_GPU(delta_tmp, dfz, nn->layers[l-1]->delta); // delta^(l-1) = (w^l)T x delta^l o f'(z^(l-1))
+        
         destroy_matrix(tw);
         destroy_matrix(delta_tmp);
         destroy_matrix(dfz);
