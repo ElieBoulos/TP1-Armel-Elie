@@ -37,7 +37,17 @@ void matrix_memcpy(matrix_t *dest, const matrix_t *src);
 void matrix_dot_gpu(const matrix_t *m1, const matrix_t *m2, matrix_t *res);
 
 void hadamard_product_GPU(matrix_t *m1, matrix_t *m2, matrix_t *res);
-// CUDA kernel function declaration (needed only if the kernel is called from a different .cu file)
-// __global__ void MatrixDotKernel(const matrix_t m1, const matrix_t m2, matrix_t res);
+
+void print_matrix_GPU(matrix_t *m, bool is_short);
+
+void matrix_sum_GPU(matrix_t *m1, matrix_t *m2, matrix_t *res);
+
+void matrix_minus_GPU(matrix_t *m1, matrix_t *m2, matrix_t *res);
+
+void matrix_transpose_GPU(matrix_t *m1, matrix_t *res);
+
+void matrix_scalar_GPU(matrix_t *m1,double s, matrix_t *res);
+
+void matrix_memcpy_GPU(matrix_t *dest, const matrix_t *src);
 
 #endif // MATRIX_H

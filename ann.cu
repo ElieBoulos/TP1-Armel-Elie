@@ -94,17 +94,17 @@ void print_layer(layer_t *layer)
     printf("-- neurons:%d, minibatch size:%d\n", layer->number_of_neurons, layer->minibatch_size);
 
     printf(">> Weighted inputs --\n");
-    print_matrix(layer->z, true);
+    print_matrix_GPU(layer->z, true);
     printf(">> Activations --\n");
-    print_matrix(layer->activations, true);
+    print_matrix_GPU(layer->activations, true);
     
     printf(">> Weights --\n");
-    print_matrix(layer->weights, true);
+    print_matrix_GPU(layer->weights, true);
     printf(">> Biases --\n");
-    print_matrix(layer->biases, true);
+    print_matrix_GPU(layer->biases, true);
 
     printf(">> Delta --\n");
-    print_matrix(layer->delta, true);
+    print_matrix_GPU(layer->delta, true);
     
 }
 
@@ -127,10 +127,11 @@ void forward(ann_t *nn, double (*activation_function)(double))
         matrix_t *one = alloc_matrix(1, nn->minibatch_size);
         for (int idx = 0; idx < one->columns*one->rows; idx++)
             one->m[idx] = 1.0;
+        
 
         matrix_dot_gpu(nn->layers[l]->weights, nn->layers[l-1]->activations, z1); // z1 <- w^l x a^(l-1)
         matrix_dot_gpu(nn->layers[l]->biases, one, z2); // z2 <- b^l x 1        
-        matrix_sum(z1, z2, nn->layers[l]->z); // z^l <- z1 + z2 <=> z^l <- w^l x a^(l-1) + b^l x 1      
+        matrix_sum_GPU(z1, z2, nn->layers[l]->z); // z^l <- z1 + z2 <=> z^l <- w^l x a^(l-1) + b^l x 1      
 
         matrix_function(nn->layers[l]->z, activation_function, nn->layers[l]->activations); // a^l = f(z^l)
      
@@ -146,10 +147,9 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
 
     matrix_t *dfzL = alloc_matrix(nn->layers[L]->number_of_neurons, nn->minibatch_size);
 
-    matrix_minus(nn->layers[L]->activations, y, nn->layers[L]->delta);  // delta^(L) = (a^L - y)
+    matrix_minus_GPU(nn->layers[L]->activations, y, nn->layers[L]->delta);
     matrix_function(nn->layers[L]->z, derivative_actfunct, dfzL); // f'(z^(L))
     hadamard_product_GPU(nn->layers[L]->delta, dfzL, nn->layers[L]->delta); // delta^(L) = (a^L - y) o f'(z^(L))
-
     destroy_matrix(dfzL);
 
     for (int l = L; l > 1; l--)
@@ -159,7 +159,7 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
         delta_tmp = alloc_matrix(nn->layers[l-1]->number_of_neurons, nn->minibatch_size);
         dfz = alloc_matrix(nn->layers[l-1]->number_of_neurons, nn->minibatch_size);
 
-        matrix_transpose(nn->layers[l]->weights, tw); // (w^l)T        
+        matrix_transpose_GPU(nn->layers[l]->weights, tw); // (w^l)T        
         matrix_dot_gpu(tw, nn->layers[l]->delta, delta_tmp); // (w^l)T x delta^l
         matrix_function(nn->layers[l-1]->z, derivative_actfunct, dfz); // f'(z^(l-1))
         hadamard_product_GPU(delta_tmp, dfz, nn->layers[l-1]->delta); // delta^(l-1) = (w^l)T x delta^l o f'(z^(l-1))
@@ -175,10 +175,12 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
         w1 = alloc_matrix(nn->layers[l]->number_of_neurons, nn->layers[l-1]->number_of_neurons);
         ta = alloc_matrix(nn->minibatch_size, nn->layers[l-1]->number_of_neurons);
         
-        matrix_transpose(nn->layers[l-1]->activations, ta); // ta <- (a^(l-1))^T
+        matrix_transpose_GPU(nn->layers[l-1]->activations, ta); // ta <- (a^(l-1))^T
         matrix_dot_gpu(nn->layers[l]->delta, ta, w1); // w1 <- delta^l x (a^(l-1))^T
-        matrix_scalar(w1, nn->alpha / nn->minibatch_size, w1); // w1 <- alpha /m . delta^l x (a^(l-1))^T
-        matrix_minus(nn->layers[l]->weights, w1, nn->layers[l]->weights); // w^l <- w^l - alpha /m . delta^l x (a^(l-1))^T
+        matrix_scalar_GPU(w1, nn->alpha / nn->minibatch_size, w1); // w1 <- alpha /m . delta^l x (a^(l-1))^T
+        
+        
+        matrix_minus_GPU(nn->layers[l]->weights, w1, nn->layers[l]->weights); // w^l <- w^l - alpha /m . delta^l x (a^(l-1))^T
 
         destroy_matrix(w1);
         destroy_matrix(ta);
@@ -190,8 +192,8 @@ void backward(ann_t *nn, matrix_t *y, double (*derivative_actfunct)(double))
             one->m[idx] = 1.0;
 
         matrix_dot_gpu(nn->layers[l]->delta, one, b1); // b1 <- delta^l x 1^T
-        matrix_scalar(b1,  nn->alpha / nn->minibatch_size, b1); // b1 <- alpha / m . delta^l x 1^T
-        matrix_minus(nn->layers[l]->biases, b1, nn->layers[l]->biases); // b^l = b^l - alpha / m . delta^l x 1^T
+        matrix_scalar_GPU(b1,  nn->alpha / nn->minibatch_size, b1); // b1 <- alpha / m . delta^l x 1^T
+        matrix_minus_GPU(nn->layers[l]->biases, b1, nn->layers[l]->biases); // b^l = b^l - alpha / m . delta^l x 1^T
         
         destroy_matrix(one);
         destroy_matrix(b1);

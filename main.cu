@@ -53,7 +53,7 @@ double accuracy(image* test_img, byte* test_label, unsigned datasize, unsigned m
     double *y = (double *) malloc( 10 * minibatch_size * sizeof(double) );
 
     zero_to_n(datasize, idx);
-    
+    //datasize - minibatch_size
     for (int i = 0; i < datasize - minibatch_size; i+= minibatch_size)
     {        
         populate_minibatch(x, y, &idx[i], minibatch_size, test_img, 28*28, test_label, 10);
@@ -127,12 +127,12 @@ int main(int argc, char *argv[])
     double *y = (double *) malloc(10 * minibatch_size * sizeof( double ));
     matrix_t *out = alloc_matrix(10, minibatch_size);
     
-    for (int epoch = 0; epoch < 5; epoch ++)
+    for (int epoch = 0; epoch < 1; epoch ++)
     {
         printf("start learning epoch %d\n", epoch);
 
         shuffle(shuffled_idx, datasize, datasize);
-
+    // datasize - minibatch_size
         for (int i = 0; i < datasize - minibatch_size ; i+= minibatch_size)
         {
             populate_minibatch(x, y, shuffled_idx+i, minibatch_size, train_img, 28*28, train_label, 10);
