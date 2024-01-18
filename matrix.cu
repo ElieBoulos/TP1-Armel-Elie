@@ -26,6 +26,7 @@ matrix_t *alloc_matrix_GPU(unsigned rows, unsigned columns)
 
     double *m;
     cudaMalloc((double **)&m, columns * rows * sizeof(double));
+
     res->m = m;
     res->columns = columns;
     res->rows = rows;
@@ -38,6 +39,7 @@ void destroy_matrix_GPU(matrix_t *m)
     free(m);
 }
 
+/*
 __global__ 
 void computeMatrixMulGPU
 (
@@ -57,7 +59,46 @@ void computeMatrixMulGPU
        C[row * numBColumns + col] = sum;
    }
 }
+*/
 
+__global__ 
+void computeMatrixMulGPU(
+   double *A, double *B, double *C,
+   int numARows, int numAColumns,
+   int numBRows, int numBColumns)
+{
+   const int BLOCK_SIZE = 16; // Adjust as needed
+   __shared__ double sharedA[BLOCK_SIZE][BLOCK_SIZE];
+   __shared__ double sharedB[BLOCK_SIZE][BLOCK_SIZE];
+
+   int bx = blockIdx.x, by = blockIdx.y;
+   int tx = threadIdx.x, ty = threadIdx.y;
+   int row = by * BLOCK_SIZE + ty;
+   int col = bx * BLOCK_SIZE + tx;
+   double sum = 0.0;
+
+   for (int m = 0; m < (numAColumns + BLOCK_SIZE - 1) / BLOCK_SIZE; ++m) {
+      if (m * BLOCK_SIZE + tx < numAColumns && row < numARows)
+         sharedA[ty][tx] = A[row * numAColumns + m * BLOCK_SIZE + tx];
+      else
+         sharedA[ty][tx] = 0.0;
+
+      if (m * BLOCK_SIZE + ty < numBRows && col < numBColumns)
+         sharedB[ty][tx] = B[(m * BLOCK_SIZE + ty) * numBColumns + col];
+      else
+         sharedB[ty][tx] = 0.0;
+
+      __syncthreads();
+
+      for (int k = 0; k < BLOCK_SIZE; ++k)
+         sum += sharedA[ty][k] * sharedB[k][tx];
+
+      __syncthreads();
+   }
+
+   if (row < numARows && col < numBColumns)
+      C[row * numBColumns + col] = sum;
+}
 
 
 void matrix_dot(const matrix_t *m1, const matrix_t *m2, matrix_t *res) {
@@ -69,6 +110,7 @@ void matrix_dot(const matrix_t *m1, const matrix_t *m2, matrix_t *res) {
 
 
     computeMatrixMulGPU<<<gridDim, blockDim>>>(m1->m,m2->m, res->m,m1->rows, m1->columns, m2->rows, m2->columns);
+  
 }
 
 
@@ -96,6 +138,7 @@ void hadamard_product(matrix_t *m1, matrix_t *m2, matrix_t *res)
     int threadsPerBlock = 256; 
     int blocksPerGrid = (m1->rows * m1->columns + threadsPerBlock - 1) / threadsPerBlock; 
     hadamard_product_kernel<<<blocksPerGrid,threadsPerBlock>>>(m1->m,m2->m, res->m, m1->rows, m1->columns, m2->rows, m2->columns);
+   
 
 
 }
@@ -143,6 +186,7 @@ void matrix_sum(matrix_t *m1, matrix_t *m2, matrix_t *res)
     int threadsPerBlock = 256; 
     int blocksPerGrid = (m1->rows * m1->columns + threadsPerBlock - 1) / threadsPerBlock; 
     matrix_sum_kernel<<<blocksPerGrid,threadsPerBlock>>>(m1->m,m2->m, res->m, m1->rows, m1->columns, m2->rows, m2->columns);
+   
 
 
 }
@@ -168,6 +212,7 @@ void matrix_minus(matrix_t *m1, matrix_t *m2, matrix_t *res)
     int threadsPerBlock = 256; 
     int blocksPerGrid = (m1->rows * m1->columns + threadsPerBlock - 1) / threadsPerBlock; 
     matrix_minus_kernel<<<blocksPerGrid,threadsPerBlock>>>(m1->m,m2->m, res->m, m1->rows, m1->columns, m2->rows, m2->columns);
+   
 
 
 }
@@ -197,6 +242,7 @@ void matrix_transpose(matrix_t *m1, matrix_t *res)
 
     matrix_transpose_kernel<<<dimGrid,dimBlock>>>(m1->m, res->m, m1->rows, m1->columns);
     
+    
 
 
 }
@@ -222,12 +268,13 @@ void matrix_scalar(matrix_t *m1,double s, matrix_t *res)
     int blocksPerGrid = (m1->rows * m1->columns + threadsPerBlock - 1) / threadsPerBlock;  
 
     matrix_scalar_kernel<<<blocksPerGrid,threadsPerBlock>>>(m1->m,res->m, m1->rows, m1->columns,s);
+   
     
     
 
 }
 
-__global__ void matrix_function_kernel(double *A, double *B, bool prime, int numRows, int numColumns)
+__global__ void matrix_function_kernel(double *A, double *B, bool deriv, int numRows, int numColumns)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -236,7 +283,7 @@ __global__ void matrix_function_kernel(double *A, double *B, bool prime, int num
     {
         double x = A[row * numColumns + col];
         double sig = 1 / (1 + exp(-x));
-        if (prime)
+        if (deriv)
         {
             sig = sig * (1 - sig);
         }
@@ -244,7 +291,7 @@ __global__ void matrix_function_kernel(double *A, double *B, bool prime, int num
     }
 }
 
-void matrix_function(matrix_t *d_m, bool prime, matrix_t *d_res)
+void matrix_function(matrix_t *d_m, bool deriv, matrix_t *d_res)
 {
     assert((d_m->columns == d_res->columns) &&
            (d_m->rows == d_res->rows));
@@ -255,7 +302,8 @@ void matrix_function(matrix_t *d_m, bool prime, matrix_t *d_res)
     dim3 blocksPerGrid((d_m->columns + threadsPerBlock.x - 1) / threadsPerBlock.x,
                        (d_m->rows + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
-    matrix_function_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_m->m, d_res->m, prime, d_res->rows, d_res->columns);
+    matrix_function_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_m->m, d_res->m, deriv, d_res->rows, d_res->columns);
+    
     
 }
 
@@ -277,6 +325,7 @@ void ones(matrix_t *d_m)
     }
     
     cudaMemcpy(d_m->m, h_m->m,h_m->columns * h_m->rows * sizeof(double), cudaMemcpyHostToDevice);
+    
 }
 
 void fill_matrix(matrix_t *m) {
@@ -301,9 +350,9 @@ int main() {
     const unsigned int rows = 4, columns = 4;
 
     // Create matrices
-    matrix_t *m1 = cuda_alloc_matrix(rows, columns);
-    matrix_t *m2 = cuda_alloc_matrix(rows, columns);
-    matrix_t *result = cuda_alloc_matrix(rows, columns);
+    matrix_t *m1 = alloc_matrix_GPU(rows, columns);
+    matrix_t *m2 = alloc_matrix_GPU(rows, columns);
+    matrix_t *result = alloc_matrix_GPU(rows, columns);
 
     // Initialize matrices with some values
     fill_matrix(m1);
@@ -377,12 +426,12 @@ int main() {
     cudaDeviceSynchronize();
 
     // Cleanup
-    cuda_free_matrix(m1);
-    cuda_free_matrix(m2);
-    cuda_free_matrix(result);
+    destroy_matrix_GPU(m1);
+    destroy_matrix_GPU(m2);
+    destroy_matrix_GPU(result);
 
     return 0;
 }
-*/
 
+*/
 

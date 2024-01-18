@@ -12,6 +12,7 @@
 #include <time.h>
 
 
+
 void populate_minibatch(double *x, double* y, unsigned* minibatch_idx, unsigned minibatch_size, image * img, unsigned img_size, byte* label, unsigned label_size);
 
 void zero_to_n(unsigned n, unsigned* t)
@@ -108,6 +109,7 @@ void populate_minibatch(double * x, double * y, unsigned * minibatch_idx, unsign
 
 int main(int argc, char *argv[])
 {
+    clock_t start = clock();
 
     srand(0);
     unsigned datasize, ntest;
@@ -134,7 +136,7 @@ int main(int argc, char *argv[])
     double *y = (double *)malloc(10 * minibatch_size * sizeof(double));
     matrix_t *out = alloc_matrix_GPU(10, minibatch_size);
 
-    for (int epoch = 0; epoch < 40; epoch++)
+    for (int epoch = 0; epoch < 1; epoch++)
     {
         
         printf("start learning epoch %d\n", epoch);
@@ -160,5 +162,11 @@ int main(int argc, char *argv[])
     free(shuffled_idx);
     destroy_matrix_GPU(out);
 
+    
+    clock_t stop = clock();
+    double duration = (double)(stop - start) / CLOCKS_PER_SEC;
+    printf("\nTemps d'execution total: %f secondes\n", duration);
+
     return 0;
+
 }
